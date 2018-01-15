@@ -11,6 +11,7 @@ import io
 import re
 import datetime
 import html
+from order import Order
 
 
 def save_attachment(msg):
@@ -118,8 +119,7 @@ def bs4method(raw_data):
                     items.append(item_name)
             elif "Order Date" in data.text:
                 order_date = datetime.datetime.strptime(data.text.strip("\n"),
-                                                        "Order Date: %d-%b-%Y %I:%M:%S %p (PST)").strftime(
-                    "%m/%d/%Y")
+                                                        "Order Date: %d-%b-%Y %I:%M:%S %p (PST)")
             elif "Total\n" == all_spans[index - 1].text:
                 for total in re.findall(r"\d+.\d+", data.text):
                     prices.append(float(total))
@@ -129,14 +129,9 @@ def bs4method(raw_data):
             unit_price = float(price) / int(quantity)
         except ZeroDivisionError:
             unit_price = float(price)
-        cart.append((item, round(price,2), quantity, unit_price))
+        cart.append((item, round(price, 2), quantity, unit_price))
 
-    return {
-        "date": order_date,
-        "order_number": order_number,
-        "items": cart,
-        "discounts": "${:,.2f}".format(0)
-    }
+    return Order(order_date, order_number, cart)
 
 
 def parse_pdf(files: list):
@@ -155,17 +150,12 @@ def parse_pdf(files: list):
         # except:
         data = bs4method(raw_data)
         if order_date is None:
-            order_date = data['date']
+            order_date = data._date
         if order_number is None:
-            order_number = data['order_number']
-        items.extend(data.pop('items'))
+            order_number = data.order_number
+        items.extend(data.cart)
 
-    return {
-        "date": order_date,
-        "order_number": order_number,
-        "items": items,
-        "discounts": "${:,.2f}".format(0)
-    }
+    return Order(order_date, order_number, items)
 
 
 if __name__ == '__main__':

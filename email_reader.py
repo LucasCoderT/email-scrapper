@@ -1,6 +1,7 @@
 import asyncio
 import email
 import imaplib
+import json
 import openpyxl
 import traceback
 from collections import Counter
@@ -9,19 +10,21 @@ import ebgames
 import lego
 from amazon import get_data
 from bestbuy import save_attachment
-from config import *
+from order import Order
 
 
 class EmailReader:
 
-    def __init__(self):
-        self.mail = imaplib.IMAP4_SSL(host="imap.gmail.com", port=993)
+    def __init__(self, user, username, password,host,port,**kwargs):
+        self.mail = imaplib.IMAP4_SSL(host=host, port=port)
+        self.user = user
         self.mail.login(username, password)
         self.stores = {}
         self.mail.select('inbox')
         self.workbook = openpyxl.Workbook()
 
     async def get_amazon(self):
+        print(f"Processing Amazon")
         self.stores["amazonca"] = []
         emails_missed = 0
         self.mail.select('Shopping/Amazonca')
@@ -32,7 +35,7 @@ class EmailReader:
             msg_body = email.message_from_bytes(v[0][1])
             # await add_new_item(await get_data(msg_body))
             try:
-                email_data = await get_data(str(msg_body))
+                email_data = await get_data(msg_body)
                 self.stores['amazonca'].append(email_data)
             except Exception as e:
                 print(e)
@@ -41,6 +44,8 @@ class EmailReader:
                 continue
 
     async def get_best_buy(self):
+        print(f"Processing BestBuy")
+
         self.stores["bestbuy"] = []
         self.mail.select('Shopping/BestBuy')
         result, data = self.mail.uid('search', None,
@@ -65,23 +70,16 @@ class EmailReader:
             total_quantity = Counter()
             total_prices = Counter()
             same_order = [o for o in self.stores['bestbuy'] if
-                          o['order_number'] == order['order_number']]
+                          o.order_number == order.order_number]
             if len(same_order) == 1:
                 formated_cart = []
-                orders_cleaned.append(order['order_number'])
-                for item in order['items']:
-                    formated_cart.append(
-                        (item[0], "${:,.2f}".format(item[1]), item[2], "${:,.2f}".format(item[3]))
-                    )
-                new_orders.append({
-                    "date": order['date'],
-                    "order_number": order['order_number'],
-                    "items": formated_cart,
-                    "discounts": "${:,.2f}".format(0)
-                })
+                orders_cleaned.append(order.order_number)
+                for item in order.cart:
+                    formated_cart.append((item[0], "${:,.2f}".format(item[1]), item[2], "${:,.2f}".format(item[3])))
+                new_orders.append(Order(order._date, order.order_number, formated_cart))
                 continue
             for orde in same_order:
-                for old_order in orde['items']:
+                for old_order in orde.cart:
                     total_quantity[old_order[0]] += old_order[2]
                     total_prices[old_order[0]] += old_order[1]
             for item, quantity in total_quantity.items():
@@ -90,19 +88,13 @@ class EmailReader:
                     (item, "${:,.2f}".format(total_prices[item]), total_quantity[item],
                      "${:,.2f}".format(new_unit_price))
                 )
-
-            new_orders.append(
-                {
-                    "date": order['date'],
-                    "order_number": order['order_number'],
-                    "items": cart,
-                    "discounts": "${:,.2f}".format(0)
-                }
-            )
-            orders_cleaned.append(order['order_number'])
+            new_orders.append(Order(order._date, order.order_number, cart))
+            orders_cleaned.append(order.order_number)
         self.stores['bestbuy'] = new_orders
 
     async def get_ebgames(self):
+        print(f"Processing EBGames")
+
         self.stores["ebgames"] = []
         self.mail.select('Shopping/EBGames')
         result, data = self.mail.uid('search', None,
@@ -121,6 +113,7 @@ class EmailReader:
                 continue
 
     async def get_lego(self):
+        print(f"Processing Lego")
         self.stores["lego"] = []
         self.mail.select('Shopping/Lego')
         result, data = self.mail.uid('search', None,
@@ -146,17 +139,17 @@ class EmailReader:
         self.workbook.remove_sheet(default_sheet)
         for store in self.stores:
             sheet = self.workbook.create_sheet(title=store)
-            for order in self.stores[store]:
-                for item in order['items']:
-                    row = [order['date'], order['order_number']]
+            for order in sorted(self.stores[store]):
+                for item in order.cart:
+                    row = [order.date, order.order_number]
                     row.extend(item)
-                    row.append(order['discounts'])
+                    row.append(order.discounts)
                     try:
                         sheet.append(row)
                     except Exception as e:
                         print(e)
                         continue
-        self.workbook.save("testbook.xlsx")
+        self.workbook.save(f"{self.user}.xlsx")
         print(f"Analyzed {sum([len(store) for store in self.stores.values()])} emails")
 
     async def gather_all(self):
@@ -164,15 +157,25 @@ class EmailReader:
                   store.startswith("get_") and callable(getattr(self, store))]
         for store in stores:
             await store()
+        self.save()
 
 
 if __name__ == '__main__':
-    reader = EmailReader()
-    # asyncio.gather(reader.get_best_buy(), reader.get_amazon(), reader.get_ebgames())
-    # asyncio.get_event_loop().run_until_complete(reader.get_best_buy())
-    # asyncio.get_event_loop().run_until_complete(reader.get_amazon())
-    # asyncio.get_event_loop().run_until_complete(reader.get_ebgames())
-    # asyncio.get_event_loop().run_until_complete(reader.get_lego())
-    asyncio.get_event_loop().run_until_complete(reader.gather_all())
-    reader.save()
-    reader.finish()
+    readers = []
+    with open("accounts.json") as file:
+        accounts = json.load(file)
+    for account in accounts:
+        try:
+            reader = EmailReader(account, **accounts[account])
+            readers.append(reader)
+            print(f"Sucessfully logged into account {account}")
+        except Exception as e:
+            print(f"Unable to log into account {account} with the credentials provided")
+            response = input("Continue with other accounts? [Y/N}")
+            if response.upper() == "Y":
+                continue
+            else:
+                exit(0)
+    loop = asyncio.get_event_loop()
+    coros = asyncio.gather(*[reader.gather_all() for reader in readers], loop=loop)
+    loop.run_until_complete(coros)

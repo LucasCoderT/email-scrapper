@@ -1,7 +1,9 @@
 import datetime
+import html
 import re
 from bs4 import BeautifulSoup
-import html
+
+from order import Order
 
 global_remover = re.compile("(=(?<==)(.*?)(?=\s))", flags=re.DOTALL)
 
@@ -12,9 +14,9 @@ def parse_email(email):
         email_date = email.get("date")
         try:
 
-            order_date = datetime.datetime.strptime(email_date, "%d %b %Y %H:%M:%S %z").strftime("%m/%d/%Y")
+            order_date = datetime.datetime.strptime(email_date, "%d %b %Y %H:%M:%S %z")
         except Exception as e:
-            order_date = datetime.datetime.strptime(email_date, "%a, %d %b %Y %H:%M:%S %z").strftime("%m/%d/%Y")
+            order_date = datetime.datetime.strptime(email_date, "%a, %d %b %Y %H:%M:%S %z")
         order_number = None
         items = []
         cart = []
@@ -55,10 +57,6 @@ def parse_email(email):
                 unit_price = float(price)
             cart.append((item, "${:,.2f}".format(price), quantity, "${:,.2f}".format(unit_price)))
 
-        return {
-            "date": order_date,
-            "order_number": order_number,
-            "items": cart,
-            "discounts": "${:,.2f}".format(0)
-        }
+        return Order(order_date, order_number, cart)
+
     return {}
