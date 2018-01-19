@@ -15,8 +15,9 @@ from order import Order
 
 class EmailReader:
 
-    def __init__(self, user, username, password,host,port,**kwargs):
+    def __init__(self, user, username, password, host, port, **kwargs):
         self.mail = imaplib.IMAP4_SSL(host=host, port=port)
+        self.email_locations = kwargs.get("locations")
         self.user = user
         self.mail.login(username, password)
         self.stores = {}
@@ -27,40 +28,48 @@ class EmailReader:
         print(f"Processing Amazon")
         self.stores["amazonca"] = []
         emails_missed = 0
-        self.mail.select('Shopping/Amazonca')
-        result, data = self.mail.uid('search', None,
-                                     "(FROM 'shipment-tracking@amazon.ca')")  # search and return uids instead
-        for num in data[0].split():
-            m, v = self.mail.uid("fetch", num, "(RFC822)")
-            msg_body = email.message_from_bytes(v[0][1])
-            # await add_new_item(await get_data(msg_body))
-            try:
-                email_data = await get_data(msg_body)
-                self.stores['amazonca'].append(email_data)
-            except Exception as e:
-                print(e)
-                print(traceback.format_tb(e.__traceback__))
-                emails_missed += 1
-                continue
+        self.mail.select(self.email_locations['amazonca'])
+        try:
+            result, data = self.mail.uid('search', None,
+                                         "(FROM 'shipment-tracking@amazon.ca')")  # search and return uids instead
+            for num in data[0].split():
+                m, v = self.mail.uid("fetch", num, "(RFC822)")
+                msg_body = email.message_from_bytes(v[0][1])
+                # await add_new_item(await get_data(msg_body))
+                try:
+                    email_data = await get_data(msg_body)
+                    self.stores['amazonca'].append(email_data)
+                except Exception as e:
+                    print(e)
+                    print(traceback.format_tb(e.__traceback__))
+                    emails_missed += 1
+                    continue
+        except:
+            print(f"No folder with the name {self.email_locations['amazonca']} found")
+            return
 
     async def get_best_buy(self):
         print(f"Processing BestBuy")
 
         self.stores["bestbuy"] = []
-        self.mail.select('Shopping/BestBuy')
-        result, data = self.mail.uid('search', None,
-                                     "(FROM 'noreply@bestbuy.ca')")  # search and return uids instead
-        for num in data[0].split():
-            m, v = self.mail.uid("fetch", num, "(RFC822)")
-            msg_body = email.message_from_bytes(v[0][1])
-            try:
-                if "Shipping" in msg_body.get("subject"):
-                    email_data = save_attachment(msg_body)
-                    if len(email_data) > 0:
-                        self.stores['bestbuy'].append(email_data)
-            except Exception as e:
-                print(e)
-                continue
+        self.mail.select(self.email_locations['bestbuy'])
+        try:
+            result, data = self.mail.uid('search', None,
+                                         "(FROM 'noreply@bestbuy.ca')")  # search and return uids instead
+            for num in data[0].split():
+                m, v = self.mail.uid("fetch", num, "(RFC822)")
+                msg_body = email.message_from_bytes(v[0][1])
+                try:
+                    if "Shipping" in msg_body.get("subject"):
+                        email_data = save_attachment(msg_body)
+                        if len(email_data) > 0:
+                            self.stores['bestbuy'].append(email_data)
+                except Exception as e:
+                    print(e)
+                    continue
+        except:
+            print(f"No folder with the name {self.email_locations['bestbuy']} found")
+            return
         orders_cleaned = []
         new_orders = []
         for order in self.stores['bestbuy']:
@@ -96,39 +105,47 @@ class EmailReader:
         print(f"Processing EBGames")
 
         self.stores["ebgames"] = []
-        self.mail.select('Shopping/EBGames')
-        result, data = self.mail.uid('search', None,
-                                     "(FROM 'help@ebgames.ca')")  # search and return uids instead
-        for num in data[0].split():
-            m, v = self.mail.uid("fetch", num, "(RFC822)")
-            msg_body = email.message_from_bytes(v[0][1])
-            # await add_new_item(await get_data(msg_body))
-            try:
-                if "Shipment" in msg_body.get("subject"):
-                    email_data = ebgames.parse_email(msg_body)
-                    if len(email_data) > 0:
-                        self.stores['ebgames'].append(email_data)
-            except Exception as e:
-                print(e)
-                continue
+        self.mail.select(self.email_locations['ebgames'])
+        try:
+            result, data = self.mail.uid('search', None,
+                                         "(FROM 'help@ebgames.ca')")  # search and return uids instead
+            for num in data[0].split():
+                m, v = self.mail.uid("fetch", num, "(RFC822)")
+                msg_body = email.message_from_bytes(v[0][1])
+                # await add_new_item(await get_data(msg_body))
+                try:
+                    if "Shipment" in msg_body.get("subject"):
+                        email_data = ebgames.parse_email(msg_body)
+                        if len(email_data) > 0:
+                            self.stores['ebgames'].append(email_data)
+                except Exception as e:
+                    print(e)
+                    continue
+        except:
+            print(f"No folder with the name {self.email_locations['ebgames']} found")
+            return
 
     async def get_lego(self):
         print(f"Processing Lego")
         self.stores["lego"] = []
-        self.mail.select('Shopping/Lego')
-        result, data = self.mail.uid('search', None,
-                                     "(FROM 'legoshop@e.lego.com')")  # search and return uids instead
-        for num in data[0].split():
-            m, v = self.mail.uid("fetch", num, "(RFC822)")
-            msg_body = email.message_from_bytes(v[0][1])
-            # await add_new_item(await get_data(msg_body))
-            try:
-                email_data = lego.parse_email(msg_body)
-                if len(email_data) > 0:
-                    self.stores['lego'].append(email_data)
-            except Exception as e:
-                print(e)
-                continue
+        self.mail.select(self.email_locations['lego'])
+        try:
+            result, data = self.mail.uid('search', None,
+                                         "(FROM 'legoshop@e.lego.com')")  # search and return uids instead
+            for num in data[0].split():
+                m, v = self.mail.uid("fetch", num, "(RFC822)")
+                msg_body = email.message_from_bytes(v[0][1])
+                # await add_new_item(await get_data(msg_body))
+                try:
+                    email_data = lego.parse_email(msg_body)
+                    if len(email_data) > 0:
+                        self.stores['lego'].append(email_data)
+                except Exception as e:
+                    print(e)
+                    continue
+        except:
+            print(f"No folder with the name {self.email_locations['lego']} found")
+            return
 
     def finish(self):
         self.mail.logout()
