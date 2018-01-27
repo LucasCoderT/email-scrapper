@@ -2,7 +2,6 @@ import pdfminer
 import pdfminer.settings
 from bs4 import BeautifulSoup
 
-pdfminer.settings.STRICT = False
 import pdfminer.high_level
 import pdfminer.layout
 from pdfminer.image import ImageWriter
@@ -12,6 +11,8 @@ import re
 import datetime
 import html
 from order import Order
+
+pdfminer.settings.STRICT = False
 
 
 def save_attachment(msg):

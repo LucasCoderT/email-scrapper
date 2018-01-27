@@ -11,11 +11,14 @@ import lego
 from amazon import get_data
 from bestbuy import save_attachment
 from order import Order
+import datetime
+
 
 
 class EmailReader:
 
     def __init__(self, user, username, password, host, port, **kwargs):
+        self.current_date = (datetime.datetime.now() - datetime.timedelta(days=7)).strftime("%d-%b-%Y")
         self.mail = imaplib.IMAP4_SSL(host=host, port=port)
         self.email_locations = kwargs.get("locations")
         self.user = user
@@ -31,7 +34,7 @@ class EmailReader:
         self.mail.select(self.email_locations['amazonca'])
         try:
             result, data = self.mail.uid('search', None,
-                                         "(FROM 'shipment-tracking@amazon.ca')")  # search and return uids instead
+                                         f"(FROM 'shipment-tracking@amazon.ca' SINCE {self.current_date})")  # search and return uids instead
             for num in data[0].split():
                 m, v = self.mail.uid("fetch", num, "(RFC822)")
                 msg_body = email.message_from_bytes(v[0][1])
@@ -55,7 +58,7 @@ class EmailReader:
         self.mail.select(self.email_locations['bestbuy'])
         try:
             result, data = self.mail.uid('search', None,
-                                         "(FROM 'noreply@bestbuy.ca')")  # search and return uids instead
+                                         f"(FROM 'noreply@bestbuy.ca' SINCE {self.current_date})")  # search and return uids instead
             for num in data[0].split():
                 m, v = self.mail.uid("fetch", num, "(RFC822)")
                 msg_body = email.message_from_bytes(v[0][1])
@@ -108,7 +111,7 @@ class EmailReader:
         self.mail.select(self.email_locations['ebgames'])
         try:
             result, data = self.mail.uid('search', None,
-                                         "(FROM 'help@ebgames.ca')")  # search and return uids instead
+                                         f"(FROM 'help@ebgames.ca' SINCE {self.current_date})")  # search and return uids instead
             for num in data[0].split():
                 m, v = self.mail.uid("fetch", num, "(RFC822)")
                 msg_body = email.message_from_bytes(v[0][1])
@@ -131,7 +134,7 @@ class EmailReader:
         self.mail.select(self.email_locations['lego'])
         try:
             result, data = self.mail.uid('search', None,
-                                         "(FROM 'legoshop@e.lego.com')")  # search and return uids instead
+                                         f"(FROM 'legoshop@e.lego.com' SINCE {self.current_date})")  # search and return uids instead
             for num in data[0].split():
                 m, v = self.mail.uid("fetch", num, "(RFC822)")
                 msg_body = email.message_from_bytes(v[0][1])
@@ -152,8 +155,7 @@ class EmailReader:
 
     def save(self):
         self.workbook.guess_types = True
-        default_sheet = self.workbook.get_sheet_by_name("Sheet")
-        self.workbook.remove_sheet(default_sheet)
+        del self.workbook['Sheet']
         for store in self.stores:
             sheet = self.workbook.create_sheet(title=store)
             for order in sorted(self.stores[store]):
