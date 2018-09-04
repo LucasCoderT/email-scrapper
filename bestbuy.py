@@ -123,7 +123,7 @@ def bs4method(raw_data):
                                                         "Order Date: %d-%b-%Y %I:%M:%S %p (PST)")
             elif "Total\n" == all_spans[index - 1].text:
                 for total in re.findall(r"\d+.\d+", data.text):
-                    prices.append(float(total))
+                    prices.append(float(total.replace(",","")))
 
     for item, quantity, price in zip(items, quantities, prices):
         try:
@@ -141,14 +141,6 @@ def parse_pdf(files: list):
     order_number = None
     for file in files:
         raw_data = file.read().decode("utf-8")
-        # try:
-        #     data = lxmlmethod(raw_data)
-        #     if order_date is None:
-        #         order_date = data['order_date']
-        #     if order_number is None:
-        #         order_number = data['order_number']
-        #     items.append(data.pop('items'))
-        # except:
         data = bs4method(raw_data)
         if order_date is None:
             order_date = data._date
