@@ -1,4 +1,3 @@
-import asyncio
 import datetime
 import email
 import imaplib
@@ -27,15 +26,16 @@ class EmailReader:
         self.mail.select('inbox')
         self.workbook = openpyxl.Workbook()
 
-    async def get_amazon(self):
+    def get_amazon(self):
         if self.email_locations.get("amazonca"):
             print(f"Processing Amazon")
             self.stores["amazonca"] = []
             emails_missed = 0
             self.mail.select(self.email_locations.get("amazonca"))
             try:
+                # search and return uids instead
                 result, data = self.mail.uid('search', None,
-                                             f"(FROM 'shipment-tracking@amazon.ca' SINCE {self.current_date})")  # search and return uids instead
+                                             f"(FROM 'shipment-tracking@amazon.ca' SINCE {self.current_date})")
                 for num in data[0].split():
                     m, v = self.mail.uid("fetch", num, "(RFC822)")
                     msg_body = email.message_from_bytes(v[0][1])
@@ -52,7 +52,7 @@ class EmailReader:
                 print(f"No folder with the name {self.email_locations['amazonca']} found")
                 return
 
-    async def get_best_buy(self):
+    def get_best_buy(self):
         if self.email_locations.get("bestbuy"):
             print(f"Processing BestBuy")
 
@@ -106,7 +106,7 @@ class EmailReader:
                 orders_cleaned.append(order.order_number)
             self.stores['bestbuy'] = new_orders
 
-    async def get_ebgames(self):
+    def get_ebgames(self):
         if self.email_locations.get("ebgames"):
             print(f"Processing EBGames")
 
@@ -131,7 +131,7 @@ class EmailReader:
                 print(f"No folder with the name {self.email_locations['ebgames']} found")
                 return
 
-    async def get_lego(self):
+    def get_lego(self):
         if self.email_locations.get("lego"):
             print(f"Processing Lego")
             self.stores["lego"] = []
@@ -157,7 +157,7 @@ class EmailReader:
     def finish(self):
         self.mail.logout()
 
-    def save(self):
+    def save_to_file(self):
         self.workbook.guess_types = True
         del self.workbook['Sheet']
         for store in self.stores:
@@ -175,12 +175,18 @@ class EmailReader:
         self.workbook.save(f"{self.user}-{datetime.datetime.now().strftime('%d-%m-%y')}.xlsx")
         print(f"Analyzed {sum([len(store) for store in self.stores.values()])} emails")
 
-    async def gather_all(self):
+    def save(self):
+        return self.stores
+
+    def run(self,to_file: bool = True) -> dict:
         stores = [getattr(self, store) for store in dir(self) if
                   store.startswith("get_") and callable(getattr(self, store))]
         for store in stores:
-            await store()
-        self.save()
+            store()
+        if to_file:
+            self.save_to_file()
+        else:
+            return self.save()
 
 
 if __name__ == '__main__':
@@ -199,6 +205,5 @@ if __name__ == '__main__':
                 continue
             else:
                 exit(0)
-    loop = asyncio.get_event_loop()
-    coros = asyncio.gather(*[reader.gather_all() for reader in readers], loop=loop)
-    loop.run_until_complete(coros)
+    for reader in readers:
+        reader.run(False)

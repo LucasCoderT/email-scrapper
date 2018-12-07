@@ -23,7 +23,7 @@ def does_item_exist(items, item):
         return False
 
 
-async def get_data(email):
+def get_data(email):
     email = str(email)
     soup = BeautifulSoup(email, "lxml")
     order_number = re.search(r'(?<=Order\s#)(\d*-\d*-\d*)', email).group(1)
