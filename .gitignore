@@ -63,3 +63,5 @@ config\.py
 
 *.xlsx
 /accounts.json
+
+testfile\.py

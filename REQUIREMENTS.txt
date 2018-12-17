@@ -1,4 +1,5 @@
 lxml
-pdfminer3
+pdfminer
+chardet
 beautifulsoup4
 openpyxl
