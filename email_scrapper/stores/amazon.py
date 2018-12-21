@@ -5,7 +5,7 @@ import re
 
 from bs4 import BeautifulSoup
 
-from src.models import Order, Item, Stores
+from email_scrapper.models import Order, Item, Stores
 
 discount_methods = {"3for30": re.compile(r'(3 for \$30.*)'), "prime savings": re.compile('(Prime Savings .*)'),
                     "gifting discount": re.compile(r"(Gifting Discount .*)"),

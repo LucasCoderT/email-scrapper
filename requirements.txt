@@ -1,0 +1,4 @@
+lxml
+pdfminer.six
+chardet
+beautifulsoup4

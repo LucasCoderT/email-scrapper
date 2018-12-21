@@ -4,7 +4,7 @@ import re
 
 from bs4 import BeautifulSoup
 
-from src.models import Order, Item, Stores
+from email_scrapper.models import Order, Item, Stores
 
 global_remover = re.compile("(=(?<==)(.*?)(?=\\s))", flags=re.DOTALL)
 

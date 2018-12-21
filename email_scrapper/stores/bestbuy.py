@@ -10,7 +10,7 @@ import pdfminer.settings
 from bs4 import BeautifulSoup
 from pdfminer.image import ImageWriter
 
-from src.models import Order, Item, Stores
+from email_scrapper.models import Order, Item, Stores
 
 pdfminer.settings.STRICT = False
 

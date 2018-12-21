@@ -1,0 +1,198 @@
+import datetime
+import email
+import imaplib
+import traceback
+import typing
+from collections import Counter
+import logging
+from email_scrapper.email_settings import Email
+from email_scrapper.models import Order, Item
+from email_scrapper.stores import lego, ebgames
+from email_scrapper.stores.amazon import get_data
+from email_scrapper.stores.bestbuy import BestBuyReader
+
+
+def store_to_dict(store_data: typing.List[Order]) -> list:
+    return [dict(order) for order in store_data]
+
+
+logger = logging.getLogger(__name__)
+
+
+# noinspection PyBroadException
+class Reader:
+
+    def __init__(self, username: str, password: str, settings: Email, email_address: str = None,
+                 locations: typing.Dict[str, str] = None,
+                 date_from: datetime.datetime = None):
+        """
+
+        :param username: The SMTP username to log in with
+        :param password:  The SMTP password to log in with
+        :param settings:  The SMTP settings
+        :param email_address: The email address that will be looked for using the TO header. Defaults to username if not specified
+        :param locations: Optional labelings to look under
+        :param date_from: 
+        """
+        self.email = email_address or username
+        self.username = username
+        self.search_date_range = date_from or (datetime.datetime.now() - datetime.timedelta(days=7)).strftime(
+            "%d-%b-%Y")
+        self.mail = imaplib.IMAP4_SSL(*settings.value)
+        self.email_locations = locations
+        self.stores: typing.Dict[str, typing.List[Order]] = {}
+        self.mail.login(username, password)
+        self.mail.select('inbox')
+
+    def get_amazon(self) -> typing.List[Order]:
+        logger.log(logging.INFO, "Processing Amazon")
+        self.stores["amazonca"] = []
+        if self.email_locations.get("amazonca"):
+            self.mail.select(self.email_locations.get("amazonca"))
+        try:
+            # search and return uids instead
+            result, amazon_data = self.mail.uid('search', None,
+                                                f"(FROM 'shipment-tracking@amazon.ca' SINCE {self.search_date_range} TO '{self.email}')")
+            for num in amazon_data[0].split():
+                m, v = self.mail.uid("fetch", num, "(RFC822)")
+                msg_body = email.message_from_bytes(v[0][1])
+                # await add_new_item(await get_data(msg_body))
+                try:
+                    email_data = get_data(msg_body)
+                    self.stores['amazonca'].append(email_data)
+                except:
+                    continue
+        except Exception as e:
+            logger.log(logging.ERROR, e)
+            return []
+        return self.stores['amazonca']
+
+    def get_best_buy(self) -> typing.List[Order]:
+        logger.log(logging.INFO, "Processing BestBuy")
+        self.stores["bestbuy"] = []
+        if self.email_locations.get("bestbuy"):
+            self.mail.select(self.email_locations.get("bestbuy"))
+        # search and return uids instead
+        result, bestbuy_data = self.mail.uid('search', None,
+                                             f"(FROM 'noreply@bestbuy.ca' SINCE {self.search_date_range} TO '{self.email}')")
+        for num in bestbuy_data[0].split():
+            m, v = self.mail.uid("fetch", num, "(RFC822)")
+            msg_body = email.message_from_bytes(v[0][1])
+            try:
+                if "ship" in msg_body.get("subject").lower():
+                    email_data = BestBuyReader().save_attachment(msg_body)
+                    if len(email_data) > 0:
+                        self.stores['bestbuy'].append(email_data)
+            except Exception as e:
+                logger.log(logging.ERROR,)
+                continue
+
+        orders_cleaned: typing.List[str] = []
+        for order in self.stores['bestbuy']:
+            if order.id in orders_cleaned:
+                continue
+            cart = []
+            total_quantity = Counter()
+            total_prices = Counter()
+            same_order = [o for o in self.stores['bestbuy'] if
+                          o.id == order.id]
+            if len(same_order) == 1:
+                orders_cleaned.append(order.id)
+                continue
+            for orde in same_order:
+                for old_order in orde.cart:
+                    total_quantity[old_order.name] += old_order.quantity
+                    total_prices[old_order.name] += old_order.unit_price
+            for item, quantity in total_quantity.items():
+                new_unit_price = total_prices[item] / quantity
+                cart.append(Item(item, new_unit_price, total_quantity[item],
+                                 order_id=order.id))
+            order.cart = cart
+            orders_cleaned.append(order.id)
+        return self.stores['bestbuy']
+
+    def get_ebgames(self) -> typing.List[Order]:
+        logger.log(logging.INFO, "Processing EBgames")
+
+        self.stores["ebgames"] = []
+        if self.email_locations.get("ebgames"):
+            self.mail.select(self.email_locations.get('ebgames'))
+        try:
+            # search and return uids instead
+            result, ebgames_data = self.mail.uid('search', None,
+                                                 f"(FROM 'help@ebgames.ca' SINCE {self.search_date_range} TO '{self.email}')")
+            for num in ebgames_data[0].split():
+                m, v = self.mail.uid("fetch", num, "(RFC822)")
+                msg_body = email.message_from_bytes(v[0][1])
+                # await add_new_item(await get_data(msg_body))
+                try:
+                    if "Shipment" in msg_body.get("subject"):
+                        email_data = ebgames.parse_ebgames_email(msg_body)
+                        if len(email_data) > 0:
+                            self.stores['ebgames'].append(email_data)
+                except Exception as e:
+                    print(e)
+                    continue
+        except:
+            print(f"No folder with the name {self.email_locations['ebgames']} found")
+            return []
+        return self.stores['ebgames']
+
+    def get_lego(self) -> typing.List[Order]:
+        logger.log(logging.INFO, "Processing Lego")
+        self.stores["lego"] = []
+        if self.email_locations.get("lego"):
+            self.mail.select(self.email_locations.get("lego"))
+        try:
+            # search and return uids instead
+            result, lego_data = self.mail.uid('search', None,
+                                              f"(FROM 'legoshop@e.lego.com' SINCE {self.search_date_range} TO '{self.email}')")
+            for num in lego_data[0].split():
+                m, v = self.mail.uid("fetch", num, "(RFC822)")
+                msg_body = email.message_from_bytes(v[0][1])
+                # await add_new_item(await get_data(msg_body))
+                try:
+                    email_data = lego.parse_lego_email(msg_body)
+                    if len(email_data) > 0:
+                        self.stores['lego'].append(email_data)
+                except Exception as e:
+                    print(e)
+                    continue
+        except:
+            print(f"No folder with the name {self.email_locations['lego']} found")
+            return []
+        return self.stores['lego']
+
+    def finish(self):
+        self.mail.logout()
+
+    def save_to_excel(self):
+        import openpyxl
+        workbook = openpyxl.Workbook()
+        workbook.guess_types = True
+        del workbook['Sheet']
+        for store in self.stores:
+            sheet = workbook.create_sheet(title=store)
+            for order in sorted(self.stores[store]):
+                for item in order.cart:
+                    row = [order.purchased, order.id]
+                    row.extend(item)
+                    row.append(order.discount)
+                    try:
+                        sheet.append(row)
+                    except Exception as e:
+                        print(e)
+                        continue
+        workbook.save(f"{self.username}-{datetime.datetime.now().strftime('%d-%m-%y')}.xlsx")
+        print(f'Analyzed {sum([len(store_email) for store_email in self.stores.values()])} emails')
+
+    def run(self) -> typing.List[Order]:
+        return_data = []
+        stores = [getattr(self, store_var) for store_var in dir(self) if
+                  store_var.startswith("get_") and callable(getattr(self, store_var))]
+        for store_func in stores:
+            store_data = store_func()
+            if store_data:
+                return_data.extend(store_data)
+        self.finish()
+        return return_data
