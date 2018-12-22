@@ -1,12 +1,12 @@
 import datetime
 import email
 import imaplib
-import traceback
+import logging
 import typing
 from collections import Counter
-import logging
+
 from email_scrapper.email_settings import Email
-from email_scrapper.models import Order, Item
+from email_scrapper.models import Order, Item, Stores
 from email_scrapper.stores import lego, ebgames
 from email_scrapper.stores.amazon import get_data
 from email_scrapper.stores.bestbuy import BestBuyReader
@@ -22,16 +22,17 @@ logger = logging.getLogger(__name__)
 # noinspection PyBroadException
 class Reader:
 
-    def __init__(self, username: str, password: str, settings: Email, email_address: str = None,
-                 locations: typing.Dict[str, str] = None,
+    def __init__(self, username: str, password: str, settings: Email = Email.GMAIL, email_address: str = None,
+                 locations: typing.Dict[Stores, str] = None,
                  date_from: datetime.datetime = None):
         """
 
         :param username: The SMTP username to log in with
         :param password:  The SMTP password to log in with
-        :param settings:  The SMTP settings
-        :param email_address: The email address that will be looked for using the TO header. Defaults to username if not specified
-        :param locations: Optional labelings to look under
+        :param settings:  The SMTP settings. Defaults to GMAIL
+        :param email_address: The email address that will be looked for using the TO header. Defaults to username if
+            not specified
+        :param locations: Optional labels to look under
         :param date_from: 
         """
         self.email = email_address or username
@@ -39,7 +40,7 @@ class Reader:
         self.search_date_range = date_from or (datetime.datetime.now() - datetime.timedelta(days=7)).strftime(
             "%d-%b-%Y")
         self.mail = imaplib.IMAP4_SSL(*settings.value)
-        self.email_locations = locations
+        self.email_locations = locations or {}
         self.stores: typing.Dict[str, typing.List[Order]] = {}
         self.mail.login(username, password)
         self.mail.select('inbox')
@@ -47,12 +48,14 @@ class Reader:
     def get_amazon(self) -> typing.List[Order]:
         logger.log(logging.INFO, "Processing Amazon")
         self.stores["amazonca"] = []
-        if self.email_locations.get("amazonca"):
-            self.mail.select(self.email_locations.get("amazonca"))
+        location = self.email_locations.get(Stores.AMAZONCA)
+        if self.email_locations.get(Stores.AMAZONCA):
+            self.mail.select(location)
         try:
             # search and return uids instead
             result, amazon_data = self.mail.uid('search', None,
-                                                f"(FROM 'shipment-tracking@amazon.ca' SINCE {self.search_date_range} TO '{self.email}')")
+                                                f"(FROM 'shipment-tracking@amazon.ca' SINCE {self.search_date_range} "
+                                                f"TO '{self.email}')")
             for num in amazon_data[0].split():
                 m, v = self.mail.uid("fetch", num, "(RFC822)")
                 msg_body = email.message_from_bytes(v[0][1])
@@ -70,11 +73,13 @@ class Reader:
     def get_best_buy(self) -> typing.List[Order]:
         logger.log(logging.INFO, "Processing BestBuy")
         self.stores["bestbuy"] = []
-        if self.email_locations.get("bestbuy"):
-            self.mail.select(self.email_locations.get("bestbuy"))
+        location = self.email_locations.get(Stores.BESTBUYCA)
+        if self.email_locations.get(Stores.BESTBUYCA):
+            self.mail.select(location)
         # search and return uids instead
         result, bestbuy_data = self.mail.uid('search', None,
-                                             f"(FROM 'noreply@bestbuy.ca' SINCE {self.search_date_range} TO '{self.email}')")
+                                             f"(FROM 'noreply@bestbuy.ca' SINCE {self.search_date_range} "
+                                             f"TO '{self.email}')")
         for num in bestbuy_data[0].split():
             m, v = self.mail.uid("fetch", num, "(RFC822)")
             msg_body = email.message_from_bytes(v[0][1])
@@ -84,7 +89,7 @@ class Reader:
                     if len(email_data) > 0:
                         self.stores['bestbuy'].append(email_data)
             except Exception as e:
-                logger.log(logging.ERROR,)
+                logger.log(logging.ERROR, e)
                 continue
 
         orders_cleaned: typing.List[str] = []
@@ -115,12 +120,14 @@ class Reader:
         logger.log(logging.INFO, "Processing EBgames")
 
         self.stores["ebgames"] = []
-        if self.email_locations.get("ebgames"):
-            self.mail.select(self.email_locations.get('ebgames'))
+        location = self.email_locations.get(Stores.EBGAMES)
+        if self.email_locations.get(Stores.EBGAMES):
+            self.mail.select(location)
         try:
             # search and return uids instead
             result, ebgames_data = self.mail.uid('search', None,
-                                                 f"(FROM 'help@ebgames.ca' SINCE {self.search_date_range} TO '{self.email}')")
+                                                 f"(FROM 'help@ebgames.ca' SINCE {self.search_date_range} "
+                                                 f"TO '{self.email}')")
             for num in ebgames_data[0].split():
                 m, v = self.mail.uid("fetch", num, "(RFC822)")
                 msg_body = email.message_from_bytes(v[0][1])
@@ -134,19 +141,20 @@ class Reader:
                     print(e)
                     continue
         except:
-            print(f"No folder with the name {self.email_locations['ebgames']} found")
             return []
         return self.stores['ebgames']
 
     def get_lego(self) -> typing.List[Order]:
         logger.log(logging.INFO, "Processing Lego")
         self.stores["lego"] = []
-        if self.email_locations.get("lego"):
-            self.mail.select(self.email_locations.get("lego"))
+        location = self.email_locations.get(Stores.LEGOCA)
+        if self.email_locations.get(Stores.LEGOCA):
+            self.mail.select(location)
         try:
             # search and return uids instead
             result, lego_data = self.mail.uid('search', None,
-                                              f"(FROM 'legoshop@e.lego.com' SINCE {self.search_date_range} TO '{self.email}')")
+                                              f"(FROM 'legoshop@e.lego.com' SINCE {self.search_date_range} "
+                                              f"TO '{self.email}')")
             for num in lego_data[0].split():
                 m, v = self.mail.uid("fetch", num, "(RFC822)")
                 msg_body = email.message_from_bytes(v[0][1])
@@ -158,8 +166,8 @@ class Reader:
                 except Exception as e:
                     print(e)
                     continue
-        except:
-            print(f"No folder with the name {self.email_locations['lego']} found")
+        except Exception as e:
+            logger.log(logging.ERROR, e)
             return []
         return self.stores['lego']
 
