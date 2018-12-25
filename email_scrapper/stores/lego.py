@@ -9,7 +9,7 @@ from email_scrapper.models import Order, Item, Stores
 global_remover = re.compile("(=(?<==)(.*?)(?=\\s))", flags=re.DOTALL)
 
 
-def parse_lego_email(email):
+def parse_lego_email(email) -> Order:
     soup = BeautifulSoup(str(email), "lxml")
     if re.search("Order Confirmation", soup.text):
         email_date = email.get("date")

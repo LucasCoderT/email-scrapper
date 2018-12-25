@@ -4,10 +4,12 @@ import imaplib
 import logging
 import typing
 from collections import Counter
+import base64
+from email.message import Message
 
 from email_scrapper.email_settings import Email
 from email_scrapper.models import Order, Item, Stores
-from email_scrapper.stores import lego, ebgames
+from email_scrapper.stores import lego, ebgames, walmart
 from email_scrapper.stores.amazon import get_data
 from email_scrapper.stores.bestbuy import BestBuyReader
 
@@ -37,7 +39,7 @@ class Reader:
         """
         self.email = email_address or username
         self.username = username
-        self.search_date_range = date_from or (datetime.datetime.now() - datetime.timedelta(days=7)).strftime(
+        self.search_date_range = date_from or (datetime.datetime.now() - datetime.timedelta(days=31)).strftime(
             "%d-%b-%Y")
         self.mail = imaplib.IMAP4_SSL(*settings.value)
         self.email_locations = locations or {}
@@ -78,16 +80,15 @@ class Reader:
             self.mail.select(location)
         # search and return uids instead
         result, bestbuy_data = self.mail.uid('search', None,
-                                             f"(FROM 'noreply@bestbuy.ca' SINCE {self.search_date_range} "
+                                             f"(FROM 'noreply@bestbuy.ca' SUBJECT 'ship' SINCE {self.search_date_range} "
                                              f"TO '{self.email}')")
         for num in bestbuy_data[0].split():
             m, v = self.mail.uid("fetch", num, "(RFC822)")
             msg_body = email.message_from_bytes(v[0][1])
             try:
-                if "ship" in msg_body.get("subject").lower():
-                    email_data = BestBuyReader().save_attachment(msg_body)
-                    if len(email_data) > 0:
-                        self.stores['bestbuy'].append(email_data)
+                email_data = BestBuyReader().save_attachment(msg_body)
+                if len(email_data) > 0:
+                    self.stores['bestbuy'].append(email_data)
             except Exception as e:
                 logger.log(logging.ERROR, e)
                 continue
@@ -138,7 +139,7 @@ class Reader:
                         if len(email_data) > 0:
                             self.stores['ebgames'].append(email_data)
                 except Exception as e:
-                    print(e)
+                    logger.log(logging.ERROR, e)
                     continue
         except:
             return []
@@ -164,12 +165,41 @@ class Reader:
                     if len(email_data) > 0:
                         self.stores['lego'].append(email_data)
                 except Exception as e:
-                    print(e)
+                    logger.log(logging.ERROR, e)
                     continue
         except Exception as e:
             logger.log(logging.ERROR, e)
             return []
         return self.stores['lego']
+
+    def get_walmart(self) -> typing.List[Order]:
+        logger.log(logging.INFO, "Processing Walmart")
+        self.stores["walmart"] = []
+        location = self.email_locations.get(Stores.WALMART)
+        if self.email_locations.get(Stores.WALMART):
+            self.mail.select(location)
+        try:
+            # search and return uids instead
+            result, walmart_data = self.mail.uid('search', None,
+                                                 f"(FROM 'noreply@walmart.ca' SUBJECT 'shipped' SINCE {self.search_date_range} "
+                                                 f"TO '{self.email}')")
+            for num in walmart_data[0].split():
+                m, v = self.mail.uid("fetch", num, "(RFC822)")
+                msg_body: Message = email.message_from_bytes(v[0][1])
+                # await add_new_item(await get_data(msg_body))
+                try:
+
+                    msg_body = base64.b64decode(msg_body.get_payload()[0]._payload)
+                    email_data = walmart.parse_walmart_email(msg_body.decode("utf-8"))
+                    if len(email_data) > 0:
+                        self.stores['walmart'].append(email_data)
+                except Exception as e:
+                    logger.log(logging.ERROR, e)
+                    continue
+        except Exception as e:
+            logger.log(logging.ERROR, e)
+            return []
+        return self.stores['walmart']
 
     def finish(self):
         self.mail.logout()
