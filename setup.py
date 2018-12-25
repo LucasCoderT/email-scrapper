@@ -9,7 +9,7 @@ with open('requirements.txt') as f:
 
 setuptools.setup(
     name='email_scrapper',
-    version='0.4.0',
+    version='0.4.1',
     author="Lucas",
     description="An email parser for store orders.",
     long_description=long_description,
