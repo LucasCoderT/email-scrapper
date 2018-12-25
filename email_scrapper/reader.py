@@ -35,12 +35,16 @@ class Reader:
         :param email_address: The email address that will be looked for using the TO header. Defaults to username if
             not specified
         :param locations: Optional labels to look under
-        :param date_from: 
+        :param date_from: How far back to search emails from. Default to 7 days.
         """
         self.email = email_address or username
         self.username = username
-        self.search_date_range = date_from or (datetime.datetime.now() - datetime.timedelta(days=31)).strftime(
-            "%d-%b-%Y")
+        if date_from:
+            self.search_date_range = date_from
+        else:
+            self.search_date_range = datetime.datetime.now() - datetime.timedelta(days=7)
+        self.search_date_range = self.search_date_range.strftime(
+                "%d-%b-%Y")
         self.mail = imaplib.IMAP4_SSL(*settings.value)
         self.email_locations = locations or {}
         self.stores: typing.Dict[str, typing.List[Order]] = {}
