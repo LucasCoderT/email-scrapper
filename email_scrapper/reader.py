@@ -1,21 +1,22 @@
+import base64
 import datetime
 import email
 import imaplib
 import logging
 import typing
-from collections import Counter
-import base64
 from email.message import Message
 
 from email_scrapper.email_settings import Email
-from email_scrapper.models import Order, Item, Stores
+from email_scrapper.models import Order, Stores
 from email_scrapper.stores import lego, ebgames, walmart
 from email_scrapper.stores.amazon import get_data
 from email_scrapper.stores.bestbuy import BestBuyReader
 
 
 def store_to_dict(store_data: typing.List[Order]) -> list:
-    return [dict(order) for order in store_data]
+    if store_data:
+        return [dict(order) for order in store_data]
+    return []
 
 
 logger = logging.getLogger(__name__)
@@ -42,18 +43,18 @@ class Reader:
         if date_from:
             self.search_date_range = date_from
         else:
-            self.search_date_range = datetime.datetime.now() - datetime.timedelta(days=7)
+            self.search_date_range = datetime.datetime.now() - datetime.timedelta(days=31)
         self.search_date_range = self.search_date_range.strftime(
-                "%d-%b-%Y")
+            "%d-%b-%Y")
         self.mail = imaplib.IMAP4_SSL(*settings.value)
+        self.stores: typing.Dict[Stores, typing.List[Order]] = {}
         self.email_locations = locations or {}
-        self.stores: typing.Dict[str, typing.List[Order]] = {}
         self.mail.login(username, password)
         self.mail.select('inbox')
 
     def get_amazon(self) -> typing.List[Order]:
         logger.log(logging.INFO, "Processing Amazon")
-        self.stores["amazonca"] = []
+        orders: typing.Dict[Order, Order] = {}
         location = self.email_locations.get(Stores.AMAZONCA)
         if self.email_locations.get(Stores.AMAZONCA):
             self.mail.select(location)
@@ -67,18 +68,28 @@ class Reader:
                 msg_body = email.message_from_bytes(v[0][1])
                 # await add_new_item(await get_data(msg_body))
                 try:
-                    email_data = get_data(msg_body)
-                    self.stores['amazonca'].append(email_data)
-                except:
+                    order = get_data(msg_body)
+                    if len(order) > 0:
+                        if order.id in orders:
+                            o = orders.get(order.id)
+                            o += order
+                        else:
+                            orders[order.id] = order
+                except TypeError:
+                    continue
+                except Exception as e:
+                    logger.log(logging.ERROR, e)
                     continue
         except Exception as e:
             logger.log(logging.ERROR, e)
             return []
-        return self.stores['amazonca']
+        finally:
+            self.stores[Stores.AMAZONCA] = list(orders.values())
+        return self.stores[Stores.AMAZONCA]
 
     def get_best_buy(self) -> typing.List[Order]:
         logger.log(logging.INFO, "Processing BestBuy")
-        self.stores["bestbuy"] = []
+        orders: typing.Dict[Order, Order] = {}
         location = self.email_locations.get(Stores.BESTBUYCA)
         if self.email_locations.get(Stores.BESTBUYCA):
             self.mail.select(location)
@@ -90,41 +101,25 @@ class Reader:
             m, v = self.mail.uid("fetch", num, "(RFC822)")
             msg_body = email.message_from_bytes(v[0][1])
             try:
-                email_data = BestBuyReader().save_attachment(msg_body)
-                if len(email_data) > 0:
-                    self.stores['bestbuy'].append(email_data)
+                order = BestBuyReader().save_attachment(msg_body)
+                if len(order) > 0:
+                    if order.id in orders:
+                        o = orders.get(order.id)
+                        o += order
+                    else:
+                        orders[order.id] = order
+            except TypeError:
+                continue
             except Exception as e:
                 logger.log(logging.ERROR, e)
                 continue
-
-        orders_cleaned: typing.List[str] = []
-        for order in self.stores['bestbuy']:
-            if order.id in orders_cleaned:
-                continue
-            cart = []
-            total_quantity = Counter()
-            total_prices = Counter()
-            same_order = [o for o in self.stores['bestbuy'] if
-                          o.id == order.id]
-            if len(same_order) == 1:
-                orders_cleaned.append(order.id)
-                continue
-            for orde in same_order:
-                for old_order in orde.cart:
-                    total_quantity[old_order.name] += old_order.quantity
-                    total_prices[old_order.name] += old_order.unit_price
-            for item, quantity in total_quantity.items():
-                new_unit_price = total_prices[item] / quantity
-                cart.append(Item(item, new_unit_price, total_quantity[item],
-                                 order_id=order.id))
-            order.cart = cart
-            orders_cleaned.append(order.id)
-        return self.stores['bestbuy']
+        self.stores[Stores.BESTBUYCA] = list(orders.values())
+        return self.stores[Stores.BESTBUYCA]
 
     def get_ebgames(self) -> typing.List[Order]:
         logger.log(logging.INFO, "Processing EBgames")
 
-        self.stores["ebgames"] = []
+        orders: typing.Dict[Order, Order] = {}
         location = self.email_locations.get(Stores.EBGAMES)
         if self.email_locations.get(Stores.EBGAMES):
             self.mail.select(location)
@@ -139,19 +134,27 @@ class Reader:
                 # await add_new_item(await get_data(msg_body))
                 try:
                     if "Shipment" in msg_body.get("subject"):
-                        email_data = ebgames.parse_ebgames_email(msg_body)
-                        if len(email_data) > 0:
-                            self.stores['ebgames'].append(email_data)
+                        order = ebgames.parse_ebgames_email(msg_body)
+                        if len(order) > 0:
+                            if order.id in orders:
+                                o = orders.get(order.id)
+                                o += order
+                            else:
+                                orders[order.id] = order
+                except TypeError:
+                    continue
                 except Exception as e:
                     logger.log(logging.ERROR, e)
                     continue
         except:
             return []
-        return self.stores['ebgames']
+        finally:
+            self.stores[Stores.EBGAMES] = list(orders.values())
+        return self.stores[Stores.EBGAMES]
 
     def get_lego(self) -> typing.List[Order]:
         logger.log(logging.INFO, "Processing Lego")
-        self.stores["lego"] = []
+        orders: typing.Dict[Order, Order] = {}
         location = self.email_locations.get(Stores.LEGOCA)
         if self.email_locations.get(Stores.LEGOCA):
             self.mail.select(location)
@@ -165,20 +168,28 @@ class Reader:
                 msg_body = email.message_from_bytes(v[0][1])
                 # await add_new_item(await get_data(msg_body))
                 try:
-                    email_data = lego.parse_lego_email(msg_body)
-                    if len(email_data) > 0:
-                        self.stores['lego'].append(email_data)
+                    order = lego.parse_lego_email(msg_body)
+                    if len(order) > 0:
+                        if order.id in orders:
+                            o = orders.get(order.id)
+                            o += order
+                        else:
+                            orders[order.id] = order
+                except TypeError:
+                    continue
                 except Exception as e:
                     logger.log(logging.ERROR, e)
                     continue
         except Exception as e:
             logger.log(logging.ERROR, e)
             return []
-        return self.stores['lego']
+        finally:
+            self.stores[Stores.LEGOCA] = list(orders.values())
+        return self.stores[Stores.LEGOCA]
 
     def get_walmart(self) -> typing.List[Order]:
         logger.log(logging.INFO, "Processing Walmart")
-        self.stores["walmart"] = []
+        orders: typing.Dict[Order, Order] = {}
         location = self.email_locations.get(Stores.WALMART)
         if self.email_locations.get(Stores.WALMART):
             self.mail.select(location)
@@ -193,17 +204,28 @@ class Reader:
                 # await add_new_item(await get_data(msg_body))
                 try:
 
-                    msg_body = base64.b64decode(msg_body.get_payload()[0]._payload)
-                    email_data = walmart.parse_walmart_email(msg_body.decode("utf-8"))
-                    if len(email_data) > 0:
-                        self.stores['walmart'].append(email_data)
+                    msg_body: bytes = base64.b64decode(msg_body.get_payload()[0]._payload)
+                    order = walmart.parse_walmart_email(msg_body.decode("utf-8"))
+                    if len(order) > 0:
+                        if order.id in orders:
+                            o = orders.get(order.id)
+                            o += order
+                        else:
+                            orders[order.id] = order
+                except TypeError:
+                    continue
                 except Exception as e:
                     logger.log(logging.ERROR, e)
                     continue
         except Exception as e:
             logger.log(logging.ERROR, e)
             return []
-        return self.stores['walmart']
+        finally:
+            self.stores[Stores.WALMART] = list(orders.values())
+        return self.stores[Stores.WALMART]
+
+    def process_order(self, order):
+        pass
 
     def finish(self):
         self.mail.logout()
@@ -214,7 +236,7 @@ class Reader:
         workbook.guess_types = True
         del workbook['Sheet']
         for store in self.stores:
-            sheet = workbook.create_sheet(title=store)
+            sheet = workbook.create_sheet(title=store.name)
             for order in sorted(self.stores[store]):
                 for item in order.cart:
                     row = [order.purchased, order.id]

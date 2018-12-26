@@ -1,6 +1,7 @@
 import datetime
 import typing
 from enum import Enum, auto
+from difflib import SequenceMatcher
 
 
 class Stores(Enum):
@@ -26,6 +27,9 @@ class Order:
         self.discount = round(discount, 2)
         self.cart = cart or []
 
+    def __repr__(self):
+        return f"{self.id} - {self.store}"
+
     def __len__(self):
         return len(self.cart)
 
@@ -36,18 +40,21 @@ class Order:
         return self.purchased > other.date
 
     def __hash__(self):
-        return int(self.order_number.replace("-", ""))
+        return int(self.id.replace("-", ""))
 
     def __eq__(self, other):
-        same_order = self.order_number = other.order_number
+        same_order = self.id = other.id
         same_cart = self.cart == other.cart
         return all([same_order, same_cart])
 
     def __getitem__(self, item):
         return self.__dict__[item]
 
-    def __add__(self, other):
-        self.cart += other.cart
+    def __iadd__(self, other: "Order"):
+        for item1, item2 in zip(self.cart, other.cart):
+            ratio = SequenceMatcher(None, item1.name, item2.name).ratio()
+            if ratio > 0.90:
+                item1.quantity += item2.quantity
 
     def __iter__(self):
         iters = dict((x, y) for x, y in Order.__dict__.items() if not x.startswith("_"))
@@ -71,6 +78,9 @@ class Item:
         self.quantity = quantity
         self.item_page = item_page
 
+    def __repr__(self):
+        return f"<{self.name}> - <{self.order}> - <{self.quantity}> - <{self.unit_price}>"
+
     def __iter__(self):
         iters = dict((x, y) for x, y in Item.__dict__.items() if not x.startswith("_"))
         iters.update(self.__dict__)
@@ -82,3 +92,6 @@ class Item:
 
     def __eq__(self, other):
         return self.order == other.order and self.name == other.name
+
+    def __hash__(self):
+        return hash(self.name)

@@ -23,6 +23,14 @@ def parse_lego_email(email) -> Order:
         cart = []
         prices = []
         quantites = []
+        order_discount = 0.00
+        discounts = set(re.findall("-CDN\$\s.*", str(email)))
+        for discount in discounts:
+            try:
+                amount = float(discount[6:])
+            except:
+                amount = 0
+            order_discount += amount
         all_td_tags = soup.find_all("td")
         for index, data in enumerate(all_td_tags):
             text = re.sub("\t", "", html.unescape(data.text))
@@ -59,6 +67,6 @@ def parse_lego_email(email) -> Order:
             cart.append(
                 Item(item, unit_price, int(quantity), order_number))
 
-        return Order(order_number, order_date, Stores.LEGOCA, cart)
+        return Order(order_number, order_date, Stores.LEGOCA, cart, discount=order_discount)
 
-    return {}
+    return None

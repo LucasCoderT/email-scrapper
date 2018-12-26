@@ -90,6 +90,15 @@ class BestBuyReader:
         cart = []
         item_name = None
         order_date = None
+        order_discount = 0.00
+        discounts = set(re.findall("-CDN\$\s.*", raw_data))
+        for discount in discounts:
+            try:
+                amount = float(discount[6:])
+            except:
+                amount = 0
+            order_discount += amount
+
         for index, data in enumerate(all_spans):
             if index == 0:
                 continue
@@ -133,7 +142,7 @@ class BestBuyReader:
                 unit_price = float(price)
             cart.append(Item(item, unit_price, quantity, order_number))
 
-        return Order(order_number, order_date, Stores.BESTBUYCA, cart)
+        return Order(order_number, order_date, Stores.BESTBUYCA, cart,discount=order_discount)
 
     def parse_pdf(self, files: list):
         items = []

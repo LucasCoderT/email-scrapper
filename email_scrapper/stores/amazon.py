@@ -7,10 +7,6 @@ from bs4 import BeautifulSoup
 
 from email_scrapper.models import Order, Item, Stores
 
-discount_methods = {"3for30": re.compile(r'(3 for \$30.*)'), "prime savings": re.compile('(Prime Savings .*)'),
-                    "gifting discount": re.compile(r"(Gifting Discount .*)"),
-                    "dealoftheday": re.compile(r"(Deal of the Day "
-                                               r".*)")}
 global_remover = re.compile("(=(?<==)(.*?)(?=\\s))", flags=re.DOTALL)
 
 logger = logging.getLogger(__name__)
@@ -35,16 +31,17 @@ def get_data(email):
     order_number = re.search(r'(?<=Order\s#)(\d*-\d*-\d*)', email).group(1)
     date = datetime.datetime.strptime(re.findall(r'(Date:.*)', email)[1][6:], "%a, %d %b %Y %H:%M:%S %z")
     items = []
-    order_discount = {}
+    order_discount = 0.00
     item_quanitites = []
     prices = [p.text for p in soup.find_all("strong") if "CDN" in p.text]
     cart = []
-    for method, pattern in discount_methods.items():
-        discount_method = re.findall(pattern, email)
-        for _ in discount_method:
-            content = _.split()
-            order_discount[method] = float(content[-1])
-            break
+    discounts = set(re.findall("-CDN\$\s.*", email))
+    for discount in discounts:
+        try:
+            amount = float(discount[6:])
+        except:
+            amount = 0
+        order_discount += amount
 
     item_names = [td.text for td in [td.find("a") for td in soup.find_all("td") if re.search(r"(Sold)", td.text)
                                      or re.search(r"(S=\nold)", td.text)] if len(td.text) > 5]
@@ -117,5 +114,5 @@ def get_data(email):
         except Exception as e:
             logger.log(logging.ERROR, e)
 
-    rdata = Order(order_number, date, Stores.AMAZONCA, cart, discount=sum(order_discount.values()))
+    rdata = Order(order_number, date, Stores.AMAZONCA, cart, discount=order_discount)
     return rdata

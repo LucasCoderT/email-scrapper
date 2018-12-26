@@ -14,6 +14,14 @@ def parse_walmart_email(email):
     date = datetime.datetime.strptime(soup.find_all("orderdate")[0].text, "%B %d, %Y")
     order_number = soup.find_all("ordernumber")[0].text
     cart = []
+    order_discount = 0.00
+    discounts = set(re.findall("-CDN\$ .*", email))
+    for discount in discounts:
+        try:
+            amount = float(discount[6:])
+        except:
+            amount = 0
+        order_discount += amount
     for item in order_items:
         name = item.select("itemname")[0].text
         quantity = float(item.select("quantity")[0].text)

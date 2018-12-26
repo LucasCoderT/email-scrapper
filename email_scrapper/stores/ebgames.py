@@ -25,6 +25,14 @@ def parse_ebgames_email(email):
     cart = []
     all_td_tags = soup.find_all("td")
     all_p_tags = soup.find_all("p")
+    order_discount = 0.00
+    discounts = set(re.findall("-CDN\$\s.*", str(email)))
+    for discount in discounts:
+        try:
+            amount = float(discount[6:])
+        except:
+            amount = 0
+        order_discount += amount
     for row in all_p_tags[2:]:
         if "Order number" in row.text:
             first_search = re.search(r"(?s)=0A(.*?)\|", row.text) or re.search(r"(?<=\=0A)(.*?)(?=\=7C)", row.text)
@@ -57,6 +65,6 @@ def parse_ebgames_email(email):
         cart.append(Item(item, unit_price, quantity, order_number))
 
     if order_number is not None:
-        return Order(order_number, order_date, Stores.EBGAMES,cart)
+        return Order(order_number, order_date, Stores.EBGAMES,cart,discount=order_discount)
     else:
-        return {}
+        return None

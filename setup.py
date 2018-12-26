@@ -9,12 +9,12 @@ with open('requirements.txt') as f:
 
 setuptools.setup(
     name='email_scrapper',
-    version='0.4.1',
+    version='0.5.0',
     author="Lucas",
     description="An email parser for store orders.",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/javatechy/dokr",
+    url="https://github.com/LucasCLuk/email-scrapper",
     packages=setuptools.find_packages(),
     install_requires=requirements,
     classifiers=[

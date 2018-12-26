@@ -9,3 +9,4 @@ Supports:
     BestBuy.ca 
     EBGames.ca 
     Lego.ca
+    Walmart.ca
