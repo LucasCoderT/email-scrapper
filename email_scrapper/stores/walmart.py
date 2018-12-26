@@ -1,3 +1,4 @@
+import base64
 import datetime
 import re
 
@@ -6,8 +7,9 @@ from bs4 import BeautifulSoup
 from email_scrapper.models import Order, Stores, Item
 
 
-def parse_walmart_email(email):
-    email = str(email)
+def parse_walmart_email(msg_body):
+    msg_body: bytes = base64.b64decode(msg_body.get_payload()[0]._payload)
+    email = str(msg_body.decode("utf-8"))
     soup = BeautifulSoup(email, "lxml")
     order_items = soup.find_all("table", {"cellpadding": "5", "cellspacing": "0"})[0].find_all("tr", {"valign": "top"})[
                   1:]
