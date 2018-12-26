@@ -1,7 +1,7 @@
 import datetime
 import typing
-from enum import Enum, auto
 from difflib import SequenceMatcher
+from enum import Enum, auto
 
 
 class Stores(Enum):
@@ -12,6 +12,14 @@ class Stores(Enum):
     LEGOCA = auto()
     WALMART = auto()
     EBGAMES = auto()
+
+
+class StoreEmail(Enum):
+    AMAZONCA = "shipment-tracking@amazon.ca"
+    BESTBUYCA = "noreploy@bestbuy.ca"
+    EBGAMES = "help@ebgames.ca"
+    LEGOCA = "legoshop@e.lego.com"
+    WALMART = "noreply@walmart.ca"
 
 
 class Order:
