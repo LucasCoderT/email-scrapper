@@ -1,16 +1,14 @@
-import base64
 import datetime
 import email
 import imaplib
 import logging
 import typing
-from email.message import Message
 
+from email_scrapper import utils
 from email_scrapper.email_settings import Email
 from email_scrapper.models import Order, Stores
 from email_scrapper.stores import lego, ebgames, walmart, amazon
 from email_scrapper.stores.bestbuy import BestBuyReader
-from email_scrapper import utils
 
 
 def store_to_dict(store_data: typing.List[Order]) -> list:
@@ -39,6 +37,7 @@ class Reader:
         """
         self.email = email_address or username
         self.username = username
+        self._password = password
         if date_from:
             self.search_date_range = date_from
         else:
@@ -48,8 +47,6 @@ class Reader:
         self.mail = imaplib.IMAP4_SSL(*settings.value)
         self.stores: typing.Dict[Stores, typing.List[Order]] = {}
         self.email_locations = locations or {}
-        self.mail.login(username, password)
-        self.mail.select('inbox')
 
     def _get_emails(self, store: Stores, processor: typing.Callable, subject: str = None) -> typing.List[Order]:
         logger.log(logging.INFO, f"Processing {store}")
@@ -108,6 +105,8 @@ class Reader:
         self.mail.logout()
 
     def run(self) -> typing.List[Order]:
+        self.mail.login(self.username, self._password)
+        self.mail.select('inbox')
         return_data = []
         stores = [getattr(self, store_var) for store_var in dir(self) if
                   store_var.startswith("get_") and callable(getattr(self, store_var))]
