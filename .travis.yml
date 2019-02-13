@@ -1,0 +1,14 @@
+language: python
+python:
+  - "3.6"
+install:
+  - pip install -r requirements.txt
+script: ignore
+deploy:
+  provider: pypi
+  user: LucascLuk
+  password:
+    secure: RXkd9A5SrTjYiLxDS0n1RLKWl1lTESgKoyBAHn/sIWBq/KASlZEZi9mXmE8qhxmAZe++7QYmkrnLJcCwk8mCSR0JNWJMv18olFkDOpjQyG7t/8pS5hHoOJkSNlPZzq2DzxSIetNieWMuvHn0fsUafaj/RV/a76dYXorhJOvOQHzA6/ll3AWRgON9mK72PsSx5Uu3JcNXjLcK/9ZaxAhZfA75/mmR4stkssrRqGVxirCri9dwQqu0aUs58Z7ZHPchIwOHT2odDhEPaB+CScdoHhQTlf5aGXgUUKd9wVMoVGoZJwupqZQ29alU7P0HHKjMg4yflVfM2Gg1H+NDxn5w90wowGw/ygU/REcRNynVFF9Fc7XDSu/PWxIlYZ1a5rciI1+fHgRsFo6DtJvvUlJkKbtHuZZ5xyCoJlvks3jkMyIftchfzKbU8kMLHT0LlLJRhYyTiv/Pb9xeEwZ8AgiWHBy8gxT4v05/rj+nQuwPjE7RYE+h6Ex+h4PdjVRXNazzb80iR6mCTHAtTvuqoCVN1RlPVO/FD4AJIWUZMAfSIdIKYE/AtqUdsybJI8yW48XJPg61PaSNtny57Lrd/N/uGef0qg3cJ3nVZQZgLm4srJzNMEuYwgSq8UQmVbatDh06DmOnw1vimDR992dTTvy6t2vxbAFY7X6KrfKsUaDIkZs=
+  on:
+    tags: true
+  distributions: "sdist bdist_wheel"
