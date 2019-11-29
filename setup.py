@@ -3,13 +3,16 @@ import setuptools
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
-
 with open('requirements.txt') as f:
     requirements = f.read().splitlines()
 
+extra_requires = {
+    "gmail": ["google-api-python-client"]
+}
+
 setuptools.setup(
     name='email_scrapper',
-    version='0.5.0',
+    version='0.6.0',
     author="Lucas",
     description="An email parser for store orders.",
     long_description=long_description,
@@ -17,6 +20,7 @@ setuptools.setup(
     url="https://github.com/LucasCLuk/email-scrapper",
     packages=setuptools.find_packages(),
     install_requires=requirements,
+    extra_requires=extra_requires,
     classifiers=[
         "Programming Language :: Python :: 3.6",
         "License :: OSI Approved :: MIT License",
