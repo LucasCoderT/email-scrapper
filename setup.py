@@ -1,3 +1,5 @@
+import os
+
 import setuptools
 
 with open("README.md", "r") as fh:
@@ -12,8 +14,8 @@ extra_requires = {
 
 setuptools.setup(
     name='email_scrapper',
-    version='0.6.0',
-    author="Lucas",
+    version=os.getenv('VERSION', '0.6.0'),
+    author="LucasCLuk",
     description="An email parser for store orders.",
     long_description=long_description,
     long_description_content_type="text/markdown",

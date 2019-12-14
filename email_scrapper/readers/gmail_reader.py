@@ -4,6 +4,7 @@ import email
 import logging
 import os
 import typing
+from email.message import Message
 
 from googleapiclient import errors
 
@@ -27,16 +28,15 @@ class GmailReader(BaseReader):
         email_mapping: dict
         Mapping of class:Stores: to str representing the email to search from
         """
-        super(GmailReader, self).__init__(date_from=date_from, user_email=user_email)
+        super(GmailReader, self).__init__(date_from=date_from, user_email=user_email, email_mapping=email_mapping)
         self.service = service
         self.user_id = user_id
-        self._email_mapping = email_mapping or {}
 
     @classmethod
-    def login(cls, credentials_json: dict = None, date_from: datetime.datetime = None):
+    def authenticate_with_browser(cls, credentials_json: dict = None, date_from: datetime.datetime = None):
         """
         Login to gmail through the browser.
-        Requires a credentials.json file
+        Requires a credentials.json file or a credentials_json dict passed
 
         Returns
         -------
@@ -68,39 +68,31 @@ class GmailReader(BaseReader):
         except (ImportError, ModuleNotFoundError):
             raise BaseException("Google Auth library not found")
 
-    def get_store_email(self, store: Stores) -> str:
-        if self._email_mapping:
-            email = self._email_mapping.get(store)
-            if email:
-                return email
-        else:
-            return super(GmailReader, self).get_store_email(store)
-
-    def get_search_date_range(self):
+    def _get_search_date_range(self):
         return self.search_date_range.strftime("%Y-%m-%d")
 
-    def get_email_details(self, message) -> str:
+    def _get_email_details(self, message) -> Message:
         response = self.service.users().messages().get(userId=self.user_id, id=message['id'], format="raw").execute()
         msg_str = base64.urlsafe_b64decode(response['raw'].encode('ASCII'))
         mime_msg = email.message_from_bytes(msg_str)
         return mime_msg
 
-    def get_search_query(self, store: Stores, subject: str = None):
-        return f"from:{self.get_store_email(store)} after:{self.get_search_date_range()}"
+    def _get_search_query(self, store: Stores, subject: str = None):
+        return f"from:{self._get_store_email(store)} after:{self._get_search_date_range()}"
 
-    def read_store_emails(self, store: Stores, subject: str = None) -> typing.Iterable[str]:
-        query = self.get_search_query(store, subject)
+    def read_store_emails(self, store: Stores, subject: str = None) -> typing.Generator[str, None, None]:
+        query = self._get_search_query(store, subject)
         try:
             response = self.service.users().messages().list(userId=self.user_id,
                                                             q=query).execute()
             if 'messages' in response:
                 for message in response['messages']:
-                    yield self.get_email_details(message)
+                    yield self._get_email_details(message)
             while 'nextPageToken' in response:
                 page_token = response['nextPageToken']
                 response = self.service.users().messages().list(userId=self.user_id, q=query,
                                                                 pageToken=page_token).execute()
                 for message in response['messages']:
-                    yield self.get_email_details(message)
+                    yield self._get_email_details(message)
         except errors.HttpError as error:
             print('An error occurred: %s' % error)
